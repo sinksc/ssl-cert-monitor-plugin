@@ -1,0 +1,24 @@
+name: ssl-cert-monitor-plugin
+version: 1.0.0
+rundeckPluginVersion: 1.2
+author: csinks
+date: Sat Aug 29 2019
+providers:
+  - name: ssl-cert-monitor-step
+    service: RemoteScriptNodeStep
+    title: 'ssl / cert / monitor'
+    description: 'Monitor SSL/TLS Certificate Expiration Date'
+    plugin-type: script
+    script-interpreter: /usr/bin/env bash
+    script-file: certMonitor
+    script-args: --url ${config.url} --days ${config.days}
+    config:
+      - type: String
+        name: url
+        title: HTTPS URL*
+        description: 'HTTPS URL to be monitored'
+        required: true        
+      - type: String
+        name: days
+        title: Alert Threshhold (days)*
+        description: 'If certificate expires in this many days or less, trigger a failure/notification'

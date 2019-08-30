@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+set -eu
+
+blue=$(tput setaf 4)
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+normal=$(tput sgr0)
+statusColor="$blue"
+
+#Functions
+usage() {
+  printf "%s\n" "Pass in an SSL URL and the number of Days, and if the site is hosting a cert that expires within that number of days, the script will print a message and fail."
+  printf "Usage: --days <> --url <>\n" 
+}
+
+options_parse() {
+  unrecognized_args=()
+
+    while (( "$#" > 0 ))
+    do
+        OPT="$1"
+        case "$OPT" in
+            --url)              url=$2      ; shift 2 ;;
+            --days)             days=$2     ; shift 2 ;;
+            # help option
+            -\?|--help)
+                usage
+                exit 2
+                ;;
+            # unrecognized arguments
+            *)
+              unrecognized_args+=("$OPT")
+              shift
+              ;;
+        esac
+    done
+
+  # Check to see if required options are set
+  if [[ -z ${url+x} ]] || [[ -z ${days+x} ]]
+  then
+    printf "Missing required parameter. Specify both --url and --days.\n"
+    return 2
+  else
+    :
+  fi
+    return 0
+}
+
+check_curl() {
+  #  find curl in $PATH
+  local curlExec=''
+
+  # Check the $PATH for it.
+  if ! curlExec=$(type -p curl)
+  then 
+    :
+  fi
+
+  if [[ -z "${curlExec:-}" ]]; then
+    printf "ERROR: curl executable not found."
+    return 1
+  fi
+  printf "%s" "$curlExec"
+  return 0
+}
+
+###########################
+#Begin script execution
+###########################
+declare curlOut=''
+declare sslEncString=''
+declare sslCN=''
+declare sslSubject=''
+declare sslIssuer=''
+declare sslIssuer=''
+declare sslStartDate=''
+declare sslExpireDate=''
+declare dateYYYY='' dateMM='' dateDD='' dateMon='' i=0 secondsDiff=0 daysDiff=0
+declare months=( JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC )
+declare expired=0
+
+# Parse options
+if ! options_parse "$@"
+then
+  usage 
+  exit 2
+fi
+
+# Find curl executable
+curlExec=$(check_curl);
+
+# Use curl to ping the URL and print the Cert info
+curlOut=$(command "$curlExec" --insecure --verbose --head "$url" 2>&1 ) || { printf "%s\n" "$curlOut"; exit 3; }
+
+# Parse Cert details
+sslEncString=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "SSL connection using " } ; /SSL connection using/ { print $2 }')
+sslCN=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "common name: " } ; /common name: / { print $2 }')
+sslSubject=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "subject: " } ; /subject: / { print $2 }')
+sslIssuer=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "issuer: " } ; /issuer: / { print $2 }')
+sslStartDate=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "start date: " } ; /start date: / { print $2 }')
+sslExpireDate=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "expire date: " } ; /expire date: / { print $2 }')
+
+# Make sure SSL connection info was returned
+if  [[ -z "$sslCN" ]]
+then  
+  printf "%s\n" "${red}Site was contacted, but no SSL details found!${normal}"
+  exit 4;
+else
+  :
+fi
+
+# Convert Expiration date to numeric date
+dateMon=$( echo "$sslExpireDate" | awk '{print $1}' | tr '[:lower:]' '[:upper:]' )
+
+for (( i=0; i<11; i++ )); do
+  [[ $dateMon = "${months[i]}" ]] && break;
+done
+
+dateMM=$( printf %02d $((i+1)) ) 
+dateDD=$( echo "$sslExpireDate" | awk '{print $2}' )
+dateYYYY=$( echo "$sslExpireDate" | awk '{print $4}' )
+
+expDate=$dateYYYY-$dateMM-$dateDD
+
+# How many days between today and $expDate?
+secondsDiff=$(( $(date -d "$expDate" +%s) - $(date +%s) ))
+daysDiff=$( echo $secondsDiff/86400 | bc )
+
+if [[ -n "$days" ]]
+then
+  # check against specified threshhold 
+  if [[ "$daysDiff" -le "$days" ]]
+  then
+    expired=1
+    statusColor="${red}"
+  else
+    statusColor="${green}"
+  fi
+else
+:
+fi
+
+printf "%-20s %-90s\n" "SSL Common Name:" "${blue}$sslCN${normal}"
+printf "%-20s %-90s\n" "Encryption Alg:" "${blue}$sslEncString${normal}"
+printf "%-20s %-90s\n" "Subject:" "${blue}$sslSubject${normal}"
+printf "%-20s %-90s\n" "Issuer:" "${blue}$sslIssuer${normal}"
+printf "%-20s %-90s\n" "Start Date:" "${blue}$sslStartDate${normal}"
+printf "%-20s %-90s\n" "Expire Date:" "${statusColor}$sslExpireDate${normal}"
+printf "%s\n" " "
+
+if [[ "$expired" -ne "0" ]]
+then
+  printf "%s\n" "Your certificate expires in ${statusColor}$daysDiff days${normal}. Time to renew!"
+  exit 1;
+else
+  printf "%s\n" "Your certificate expires in ${statusColor}$daysDiff days.${normal}"
+fi
+
+exit $?
