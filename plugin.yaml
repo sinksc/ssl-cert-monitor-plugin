@@ -16,7 +16,7 @@ providers:
       - type: String
         name: url
         title: HTTPS URL*
-        description: 'HTTPS URL to be monitored'
+        description: 'Valid HTTPS URL to be monitored'
         required: true        
       - type: String
         name: days
