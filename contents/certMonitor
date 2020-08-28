@@ -25,7 +25,7 @@ options_parse() {
             # help option
             -\?|--help)
                 usage
-                exit 2
+		return_exit 2
                 ;;
             # unrecognized arguments
             *)
@@ -64,6 +64,12 @@ check_curl() {
   return 0
 }
 
+return_exit() {
+  local exit_code=$1
+  echo "RUNDECK:DATA:EXIT_CODE=$exit_code"
+  exit $exit_code
+}
+
 ###########################
 #Begin script execution
 ###########################
@@ -83,14 +89,14 @@ declare expired=0
 if ! options_parse "$@"
 then
   usage 
-  exit 2
+  return_exit 2
 fi
 
 # Find curl executable
 curlExec=$(check_curl);
 
 # Use curl to ping the URL and print the Cert info
-curlOut=$(command "$curlExec" --insecure --verbose --head "$url" 2>&1 ) || { printf "%s\n" "$curlOut"; exit 3; }
+curlOut=$(command "$curlExec" --insecure --verbose --head "$url" 2>&1 ) || { printf "%s\n" "$curlOut"; return_exit 3; }
 
 # Parse Cert details
 sslEncString=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "SSL connection using " } ; /SSL connection using/ { print $2 }')
@@ -104,7 +110,7 @@ sslExpireDate=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "expire date: " } ; /
 if  [[ -z "$sslCN" ]]
 then  
   printf "%s\n" "${red}Site was contacted, but no SSL details found!${normal}"
-  exit 4;
+  return_exit 4;
 else
   :
 fi
@@ -151,9 +157,9 @@ printf "%s\n" " "
 if [[ "$expired" -ne "0" ]]
 then
   printf "%s\n" "Your certificate expires in ${statusColor}$daysDiff days${normal}. Time to renew!"
-  exit 1;
+  return_exit 1;
 else
   printf "%s\n" "Your certificate expires in ${statusColor}$daysDiff days.${normal}"
 fi
 
-exit $?
+return_exit $?

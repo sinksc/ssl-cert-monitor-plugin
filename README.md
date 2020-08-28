@@ -27,6 +27,9 @@ This step returns the following exit codes:
 |      3     | General curl command failure (output will display error details). |
 |      4     | Site was contacted, but no SSL details found in the response. |
 
+##### Log Filtering (Optional)
+
+The exit code is also assigned to "RUNDECK:DATA:EXIT_CODE" for use in Key-Value log filtering, if desired. [See here for more information.](https://docs.rundeck.com/docs/manual/log-filters/key-value-data.html)
 
 ## Building
 
