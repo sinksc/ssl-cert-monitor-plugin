@@ -109,7 +109,7 @@ sslStartDate=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "start date: " } ; /st
 sslExpireDate=$(printf "%s" "$curlOut" | awk 'BEGIN { FS = "expire date: " } ; /expire date: / { print $2 }')
 
 # Make sure SSL connection info was returned
-if  [[ -z "$sslCN" ]]
+if  [[ -z "$sslSubject" ]]
 then  
   printf "%s\n" "${red}Site was contacted, but no SSL details found!${normal}"
   return_exit 4;
